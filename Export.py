@@ -121,12 +121,14 @@ def run(context):
         my_button = ui.commandDefinitions.itemById(COMMAND_KEY)
         if my_button:
             my_button.deleteMe()
-        my_button = cmd_defs.addButtonDefinition(COMMAND_KEY, 'Export STL', 'Export the pre-determined STL file')
+        my_button = cmd_defs.addButtonDefinition(COMMAND_KEY, 'Export STL', 'Export the pre-determined STL file',
+                                                 'exportIcon')
         on_command_created = ExportCommandCreatedEventHandler()
         my_button.commandCreated.add(on_command_created)
         keepHandlers.append(on_command_created)
-        controls = ui.allToolbarPanels.itemById('SolidMakePanel').controls
-        deleter = replace_existing_control(controls, my_button)
+        deleter = replace_existing_control(ui.allToolbarPanels.itemById('SolidMakePanel').controls, my_button)
+        deleter2 = replace_existing_control(ui.toolbars.itemById('QAT').controls, my_button)
+
     except:
         if ui:
             ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
@@ -137,7 +139,7 @@ def replace_existing_control(controls, new_command=None):
     if control:
         control.deleteMe()
     if new_command:
-        control = controls.addCommand(new_command, '', False)
+        control = controls.addCommand(new_command)
         return lambda: control.deleteMe()
     return lambda: None
 
