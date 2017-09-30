@@ -166,14 +166,14 @@ def export_stl_file(args):
                         export_manager.execute(options)
                         temp_file.seek(0)
                         copyfile(temp_file.name, file_path)
+                    return
                 finally:
                     url.stopAccessingSecurityScopedResource()
             else:
                 ui.messageBox('file ' + str(url) + ' is not accessible')
-                ui.commandDefinitions.itemById(SETTINGS_COMMAND_KEY).execute()
         else:
             ui.messageBox('body "' + '.'.join(data['chain']) + '" not found')
-            ui.commandDefinitions.itemById(SETTINGS_COMMAND_KEY).execute()
+    ui.commandDefinitions.itemById(SETTINGS_COMMAND_KEY).execute()
 
 
 def run(context):
