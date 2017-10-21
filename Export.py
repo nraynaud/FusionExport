@@ -47,10 +47,10 @@ def get_path_for_entity(entity):
 
 
 def select_output_file(ui):
-    ui.createFileDialog()
     dialog = ui.createFileDialog()
-    dialog.title = 'Select export file'
-    dialog.filter = '*.stl'
+    dialog.title = 'Export STL file'
+    dialog.filter = 'STL files (*.stl)'
+    dialog.initialFilename = 'out'
     accessible = dialog.showSave()
     if accessible == DialogResults.DialogOK:
         return dialog.filename
@@ -113,25 +113,41 @@ def create_setting_panel(args):
 
     cmd.activate.add((handle(on_activation, CommandEventHandler)))
 
-    def on_execution(args):
-        file_name = file_input.text
-        body = selection_input.selection(0).entity
-        chain = get_path_for_entity(body)
+    def get_bookmark_bytes(file_name):
         url = Foundation.NSURL.alloc().initFileURLWithPath_(file_name)
         bookmark, error = url.bookmarkDataWithOptions_includingResourceValuesForKeys_relativeToURL_error_(
             Foundation.NSURLBookmarkCreationWithSecurityScope,
             None,
             None,
             None)
+        if error:
+            # that's the error code if the file is not on disk yet.
+            if error.code() == 260:
+                return None
+            raise Exception(error.localizedDescription())
         # base64 encode the bookmark so it can be jsonified
-        the_bytes = bookmark.base64EncodedStringWithOptions_(0)
+        return bookmark.base64EncodedStringWithOptions_(0)
+
+    def on_execution(args):
+        file_name = file_input.text
+        body = selection_input.selection(0).entity
+        chain = get_path_for_entity(body)
+        the_bytes = get_bookmark_bytes(file_name)
+        need_save = True
+        if not the_bytes:
+            export_stl(design, body, file_name)
+            the_bytes = get_bookmark_bytes(file_name)
+            need_save = False
         json_params = json.dumps({'file': the_bytes, 'chain': chain})
+        # for later
+        #        body.attributes.add('nraynaud-Export', 'export', json.dumps([{'file': the_bytes, 'type': 'stl'}]))
         dir_param = design.userParameters.itemByName(USER_PARAM)
         if dir_param:
             dir_param.comment = json_params
         else:
             design.userParameters.add(USER_PARAM, ValueInput.createByString('0'), '', json_params)
-        ui.commandDefinitions.itemById(EXPORT_COMMAND_KEY).execute()
+        if need_save:
+            ui.commandDefinitions.itemById(EXPORT_COMMAND_KEY).execute()
 
     cmd.execute.add(handle(on_execution, CommandEventHandler))
 
@@ -156,17 +172,7 @@ def export_stl_file(args):
             accessible = url.startAccessingSecurityScopedResource()
             if accessible:
                 try:
-                    # using the temp dir, for some reasons exportManager tries to access the directory
-                    # surrounding the output file
-                    with tempfile.NamedTemporaryFile(suffix='.stl') as temp_file:
-                        export_manager = design.exportManager
-                        options = export_manager.createSTLExportOptions(body, temp_file.name)
-                        options.sendToPrintUtility = False
-                        options.meshRefinement = 0
-                        export_manager.execute(options)
-                        temp_file.seek(0)
-                        copyfile(temp_file.name, file_path)
-                    return
+                    return export_stl(design, body, file_path)
                 finally:
                     url.stopAccessingSecurityScopedResource()
             else:
@@ -174,6 +180,20 @@ def export_stl_file(args):
         else:
             ui.messageBox('body "' + '.'.join(data['chain']) + '" not found')
     ui.commandDefinitions.itemById(SETTINGS_COMMAND_KEY).execute()
+
+
+def export_stl(design, body, file_path):
+    # using the temp dir, for some reasons exportManager tries to access the directory
+    # surrounding the output file
+    with tempfile.NamedTemporaryFile(suffix='.stl') as temp_file:
+        export_manager = design.exportManager
+        options = export_manager.createSTLExportOptions(body, temp_file.name)
+        options.sendToPrintUtility = False
+        options.meshRefinement = 0
+        export_manager.execute(options)
+        temp_file.seek(0)
+        copyfile(temp_file.name, file_path)
+    return
 
 
 def run(context):
